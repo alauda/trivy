@@ -29,7 +29,7 @@ spec:
         - name: target-path
           value: ./devops/trivy/v0.37.2/
         - name: package-name
-          value: trivy_0.37.2_arm64.tar.gz
+          value: trivy_0.37.2_arm64_$(build.git.lastCommit.shortID).tar.gz
         - name: checksum
           value: "false"
     - name: build
@@ -85,7 +85,7 @@ spec:
         - name: target-path
           value: ./devops/trivy/v0.37.2/
         - name: package-name
-          value: trivy_0.37.2_amd64.tar.gz
+          value: trivy_0.37.2_amd64_$(build.git.lastCommit.shortID).tar.gz
         - name: checksum
           value: "false"
   git:
