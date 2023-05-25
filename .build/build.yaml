@@ -1,0 +1,115 @@
+apiVersion: builds.katanomi.dev/v1alpha1
+kind: Build
+spec:
+  workspaces:
+    - description: |
+        This workspace is shared among all the pipeline tasks to read/write common resources
+      name: source
+  tasks:
+    - name: upload-arm
+      runAfter:
+        - build
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: upload-files
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: artifacts-path
+          value:
+            - ./contrib
+            - ./LICENSE
+            - ./output/arm/trivy
+        - name: artifact-repository
+          value: https://build-nexus.alauda.cn/repository/alauda/
+        - name: target-path
+          value: ./devops/trivy/v0.37.2/
+        - name: package-name
+          value: trivy_0.37.2_arm64.tar.gz
+        - name: checksum
+          value: "false"
+    - name: build
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: go-build
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: tool-image
+          value: golang:1.19.9
+        - name: dependencies-repositories
+          value:
+            - https://build-nexus.alauda.cn/repository/golang/
+        - name: command
+          value: |-
+            VERSION=0.37.2-1-$(build.git.lastCommit.shortID)
+            mkdir -p ./output/amd
+            GOARCH=amd64 GOOS=linux go build -ldflags "-s -w -X=main.version=${VERSION}" ./cmd/trivy
+            mv trivy ./output/amd
+
+            GOARCH=arm64 GOOS=linux go build -ldflags "-s -w -X=main.version=${VERSION}" ./cmd/trivy
+            mkdir -p ./output/arm
+            mv trivy ./output/arm
+        - name: build-outputs-path
+          value:
+            - ./output/amd/trivy
+            - ./output/arm/trivy
+    - name: upload-amd
+      runAfter:
+        - build
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: upload-files
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: artifacts-path
+          value:
+            - ./contrib
+            - ./LICENSE
+            - ./output/amd/trivy
+        - name: artifact-repository
+          value: https://build-nexus.alauda.cn/repository/alauda/
+        - name: target-path
+          value: ./devops/trivy/v0.37.2/
+        - name: package-name
+          value: trivy_0.37.2_amd64.tar.gz
+        - name: checksum
+          value: "false"
+  git:
+    options:
+      depth: 1
+      timeout: 10m
+      retries: 0
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 200m
+          memory: 200Mi
+  runTemplate:
+    spec:
+      taskRunSpecs:
+        - pipelineTaskName: build
+          stepOverrides:
+            - name: go-build
+              resources:
+                requests:
+                  cpu: 3000m
+                  memory: 3072Mi
+                limits:
+                  cpu: 3000m
+                  memory: 3072Mi
